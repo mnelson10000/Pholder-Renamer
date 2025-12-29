@@ -14,6 +14,7 @@ Phish show folder renamer, powered by phish.net
 8. It assembles the proposed new folder name in this specific order:
    `Date Location - Venue (SHNID) (Set Number) (Misc Tag) [Source]`
 9. It pops up a window displaying the **Old Name** vs. the **New Name** and gives you an opportunity to override the proposed new name.
+10. Crawls through each show in the folder and repeats, having you confirm each name change before saving.
 
 ## How to Use
 
@@ -28,7 +29,7 @@ To use this script, you need a free API key from Phish.net.
 1. Open the script file in a text editor (Notepad, VS Code, or PowerShell ISE).
 2. Locate the `$ApiKey` variable at the top of the file:
    ```powershell
-   $ApiKey = "PUT_YOUR_KEY_HERE"
+   $ApiKey = "PUT_YOUR_PHISH.NET_PRIVATE_KEY_HERE"
    ```
 3. Paste your API key inside the quotes, replacing the placeholder text.
 4. Save the file.
