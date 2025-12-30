@@ -35,13 +35,24 @@ Function Fix-Mojibake {
 Function Get-PhishShow {
     param($ShowDate)
     try {
+        # Check if user forgot to update the key
+        if ($ApiKey -eq "PUT_YOUR_KEY_HERE") {
+            Write-Host "ERROR: You have not updated the `$ApiKey variable at the top of the script!" -ForegroundColor Red
+            return $null
+        }
+
         $Url = "https://api.phish.net/v5/shows/showdate/${ShowDate}.json?apikey=$ApiKey"
         $Response = Invoke-RestMethod -Uri $Url -Method Get -ErrorAction Stop
+        
         if ($Response.data -and $Response.data.count -gt 0) {
             return $Response.data[0]
+        } else {
+            Write-Host "API Warning: No show found for date $ShowDate" -ForegroundColor Yellow
         }
     }
-    catch { }
+    catch { 
+        Write-Host "API ERROR for $ShowDate : $($_.Exception.Message)" -ForegroundColor Red
+    }
     return $null
 }
 
@@ -154,6 +165,8 @@ foreach ($Dir in $Dirs) {
     $SpecialTag = "" 
     $ShnidTag = ""
     $SetTag = ""
+    $PartialTag = ""
+    $SoundcheckTag = ""
 
     Write-Progress -Activity "Renaming Phish Shows" -Status "Processing: $OriginalName" -PercentComplete (($Count / $Total) * 100)
 
@@ -171,19 +184,30 @@ foreach ($Dir in $Dirs) {
         $SpecialTag = "(dhmatrix)"
     }
 
-    # 4. NEW: Detect SHNID (6 digits separated by periods)
-    # Looks for .123456. pattern
+    # 4. Detect SHNID (6 digits separated by periods)
     if ($OriginalName -match "\.(\d{6})\.") {
         $ShnidTag = "($($matches[1]))"
     }
 
-    # 5. NEW: Detect Set Info (separated by periods)
-    # Looks for .set1. or .set2. pattern
-    if ($OriginalName -match "\.set(\d+)\.") {
-        $SetTag = "(Set $($matches[1]))"
+    # 5. NEW: Detect Soundcheck (Looking for "sndchk" or "soundcheck")
+    if ($OriginalName -match "(?i)(sndchk|soundcheck)") {
+        $SoundcheckTag = "(Soundcheck)"
     }
 
-    # 6. Detect Source / FLAC
+    # 6. Detect Sets (Smart "Set 2 & 3" logic)
+    $SetMatches = [Regex]::Matches($OriginalName, "[._-]set(\d+)", "IgnoreCase")
+    if ($SetMatches.Count -gt 0) {
+        $SetNums = $SetMatches | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+        $JoinedSets = $SetNums -join " & "
+        $SetTag = "(Set $JoinedSets)"
+    }
+
+    # 7. Detect Partial
+    if ($OriginalName -match "[._-]partial") {
+        $PartialTag = "(Partial)"
+    }
+
+    # 8. Detect Source / FLAC
     if ($OriginalName -match "((?:\[|\().+(?:\]|\)))$") {
         $RawTag = $matches[1]
         # Remove (dhmatrix) from the tail tag to avoid duplication
@@ -197,7 +221,7 @@ foreach ($Dir in $Dirs) {
         $SourceTag = "[$CleanFlac]"
     }
 
-    # 7. Query API
+    # 9. Query API
     $ShowData = Get-PhishShow -ShowDate $DetectedDate
 
     if ($ShowData) {
@@ -223,8 +247,14 @@ foreach ($Dir in $Dirs) {
         # Append SHNID
         if ($ShnidTag) { $SuggestedName = "$SuggestedName $ShnidTag" }
 
+        # Append Soundcheck (Before Sets)
+        if ($SoundcheckTag) { $SuggestedName = "$SuggestedName $SoundcheckTag" }
+
         # Append Set Info
         if ($SetTag) { $SuggestedName = "$SuggestedName $SetTag" }
+
+        # Append Partial Info
+        if ($PartialTag) { $SuggestedName = "$SuggestedName $PartialTag" }
 
         # Append Special Tag (dhmatrix)
         if ($SpecialTag) { $SuggestedName = "$SuggestedName $SpecialTag" }
